@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 import argparse
-import logging
 import os
 import posixpath
 import re
@@ -16,6 +15,7 @@ from atcodertools.client.models.problem_content import InputFormatDetectionError
 from atcodertools.codegen.code_style_config import DEFAULT_WORKSPACE_DIR_PATH
 from atcodertools.codegen.models.code_gen_args import CodeGenArgs
 from atcodertools.common.language import ALL_LANGUAGES, CPP
+from atcodertools.common.logging import logger
 from atcodertools.config.config import Config
 from atcodertools.constprediction.constants_prediction import predict_constants
 from atcodertools.fmtprediction.models.format_prediction_result import FormatPredictionResult
@@ -33,8 +33,11 @@ def get_problem_from_url(problem_url: str) -> Problem:
     dummy_alphabet = 'Z'  # it's impossible to reconstruct the alphabet from URL
     result = urllib.parse.urlparse(problem_url)
 
+    normpath = os.path.normpath(result.path)
+    normpath = normpath.replace("\\", "/")  # for windows
+
     # old-style (e.g. http://agc012.contest.atcoder.jp/tasks/agc012_d)
-    dirname, basename = posixpath.split(os.path.normpath(result.path))
+    dirname, basename = posixpath.split(normpath)
     if result.scheme in ('', 'http', 'https') \
             and result.netloc.count('.') == 3 \
             and result.netloc.endswith('.contest.atcoder.jp') \
@@ -47,7 +50,7 @@ def get_problem_from_url(problem_url: str) -> Problem:
 
     # new-style (e.g. https://beta.atcoder.jp/contests/abc073/tasks/abc073_a)
     m = re.match(
-        r'^/contests/([\w\-_]+)/tasks/([\w\-_]+)$', os.path.normpath(result.path))
+        r'^/contests/([\w\-_]+)/tasks/([\w\-_]+)$', normpath)
     if result.scheme in ('', 'http', 'https') \
             and result.netloc in ('atcoder.jp', 'beta.atcoder.jp') \
             and m:
@@ -64,16 +67,15 @@ def generate_code(atcoder_client: AtCoderClient,
                   output_file: IOBase):
     problem = get_problem_from_url(problem_url)
     template_code_path = config.code_style_config.template_file
-    lang = config.code_style_config.lang
 
     def emit_error(text):
-        logging.error(with_color(text, Fore.RED))
+        logger.error(with_color(text, Fore.RED))
 
     def emit_warning(text):
-        logging.warning(text)
+        logger.warning(text)
 
     def emit_info(text):
-        logging.info(text)
+        logger.info(text)
 
     emit_info('{} is used for template'.format(template_code_path))
 
@@ -164,13 +166,13 @@ def main(prog, args, output_file=sys.stdout):
         try:
             client.login(
                 save_session_cache=not config.etc_config.save_no_session_cache)
-            logging.info("Login successful.")
+            logger.info("Login successful.")
         except LoginError:
-            logging.error(
+            logger.error(
                 "Failed to login (maybe due to wrong username/password combination?)")
             sys.exit(-1)
     else:
-        logging.info("Downloading data without login.")
+        logger.info("Downloading data without login.")
 
     generate_code(client,
                   args.url,

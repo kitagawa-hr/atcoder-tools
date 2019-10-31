@@ -9,18 +9,23 @@ Python 3.5 以降で動作する [AtCoder](http://atcoder.jp/) からサンプ�
 このツールには次のような機能があります。
 - AtCoderへのログイン，入出力例データなどの抽出
 - 枝刈り探索による高精度・高速な入力フォーマット解析 (ARC、ABC、AGCについては約9割ほど)
-- 問題文中に含まれるMOD値やYES/NO文字列等の定数値抽出
+- 問題文中に含まれるMOD値、YES/NO文字列、誤差ジャッジのための誤差値等の定数値抽出
+- サンプルのローカルテスト機能
+    - 誤差ジャッジに対応 by [@chaemon](https://github.com/chaemon/)
 - コード提出機能
 - 入力フォーマット解析結果や抽出した定数値を用いたテンプレートからのコード自動生成(以下の表に記載されている言語をサポートしています)
     - カスタムテンプレートに対応
     - 他言語対応のためのコントリビューション(≒中間形式からコードに変換する部分のPR)を募集中です!
 
 |対応言語  |Contributor 1|Contributor 2|
-|:---:|:---:|:---:|
+|---:|:---:|:---:|
 |C++|[@kyuridenamida](https://github.com/kyuridenamida/) (generator, template)|[@asi1024](https://github.com/asi1024/) (template)|
 |Java|[@kyuridenamida](https://github.com/kyuridenamida/) (generator, template)||
 |Rust|[@fukatani](https://github.com/fukatani/) (generator, template)|[@koba-e964](https://github.com/koba-e964/) (template, CR)|
-|Python3|[@kmyk](https://github.com/kmyk/) (generator, template)||
+|Python3|[@kmyk](https://github.com/kmyk/) (generator, template)|[@penpenpng](https://github.com/penpenpng/) (generator)|
+|D|[@penpenpng](https://github.com/penpenpng/) (generator, template)||
+|Nim|[@chaemon](https://github.com/chaemon/) (generator, template)||
+|C#|[@chaemon](https://github.com/chaemon/) (generator, template)||
 
 ## Demo
 <img src="https://user-images.githubusercontent.com/233559/52807100-f6e2d300-30cd-11e9-8906-82b9f9b2dff7.gif" width=70%>
@@ -51,18 +56,19 @@ https://kyuridenamida.github.io/atcoder-tools/
 過去のユーザーの皆様には`AccountInformation.py`を削除して頂くようお願い申し上げます。*
 
 
-- `atcoder-tools gen {contest_id}` コンテスト環境を用意するコマンド
-- `atcoder-tools test` カレント・ディレクトリ上に実行ファイルと入出力(in_\*.txt, out_\*.txt)がある状態で実行するとローカルテストを行う
+- `atcoder-tools gen {contest_id}` コンテスト環境を用意します。
+- `atcoder-tools test` カレント・ディレクトリ上に実行ファイルと入出力(in_\*.txt, out_\*.txt)がある状態で実行するとローカルテストを行います。
 - `atcoder-tools submit` カレント・ディレクトリ上で実行すると対応する問題がサンプルに通る場合ソースコードを提出します。既にAtCoder上にその問題に対する提出がある場合、`-u`を指定しないと提出できないようになっています。
+- `atcoder-tools version` 現在の atcoder-tools のバージョンを出力します。
 
 `atcoder-tools gen --help`で`atcoder-tools gen`の引数の詳細について確認することができます。
 
 例: 
 ```console
-$ atcoder-tools gen agc001
-$ cd ~/atcoder-workspace/agc001/A
-$ g++ main.cpp
-$ atcoder-tools test
+atcoder-tools gen agc001
+cd ~/atcoder-workspace/agc001/A
+g++ main.cpp
+atcoder-tools test
 ```
 
 `--without-login` 引数を指定するとログインなしでデータをダウンロードできます(一般公開されているコンテストのみ)。
@@ -88,14 +94,16 @@ optional arguments:
   --workspace WORKSPACE
                         Path to workspace's root directory. This script will create files in {WORKSPACE}/{contest_name}/{alphabet}/ e.g. ./your-workspace/arc001/A/
                         [Default] /home/kyuridenamida/atcoder-workspace
-  --lang LANG           Programming language of your template code, cpp or java.
+  --lang LANG           Programming language of your template code, cpp or java or rust or python or nim or d or cs.
                         [Default] cpp
   --template TEMPLATE   File path to your template code
                         [Default (C++)] /atcodertools/tools/templates/default_template.cpp
                         [Default (Java)] /atcodertools/tools/templates/default_template.java
                         [Default (Rust)] /atcodertools/tools/templates/default_template.rs
                         [Default (Python3)] /atcodertools/tools/templates/default_template.py
-
+                        [Default (NIM)] /atcodertools/tools/templates/default_template.nim
+                        [Default (D)] /atcodertools/tools/templates/default_template.d
+                        [Default (C#)] /atcodertools/tools/templates/default_template.cs
   --parallel            Prepare problem directories asynchronously using multi processors.
   --save-no-session-cache
                         Save no session cache to avoid security risk
@@ -107,11 +115,12 @@ optional arguments:
 ### test の詳細
 
 ```
-usage: atcoder-tools test [-h] [--exec EXEC]
-                                                         [--num NUM]
-                                                         [--dir DIR]
-                                                         [--timeout TIMEOUT]
-                                                         [--knock-out]
+usage: atcoder-tools test [-h] [--exec EXEC] [--num NUM]
+                                         [--dir DIR] [--timeout TIMEOUT]
+                                         [--knock-out]
+                                         [--skip-almost-ac-feedback]
+                                         [--judge-type JUDGE_TYPE]
+                                         [--error-value ERROR_VALUE]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -123,19 +132,22 @@ optional arguments:
   --knock-out, -k       Stop execution immediately after any example's failure [Default] False
   --skip-almost-ac-feedback, -s
                         Hide inputs and expected/actual outputs if result is correct and there are error outputs [Default] False,
+  --judge-type JUDGE_TYPE, -j JUDGE_TYPE
+                        error type must be one of [normal, absolute, relative, absolute_or_relative]
+  --error-value ERROR_VALUE, -v ERROR_VALUE
+                        error value for decimal number judge: [Default] 0.000000001
 ```
 
 
 ### submit の詳細
 
 ```
-usage: atcoder-tools submit [-h] [--exec EXEC]
-                                                           [--dir DIR]
-                                                           [--timeout TIMEOUT]
-                                                           [--code CODE]
-                                                           [--force]
-                                                           [--save-no-session-cache]
-                                                           [--unlock-safety]
+usage: atcoder-tools submit [-h] [--exec EXEC] [--dir DIR]
+                                           [--timeout TIMEOUT] [--code CODE]
+                                           [--force] [--save-no-session-cache]
+                                           [--unlock-safety]
+                                           [--judge-type JUDGE_TYPE]
+                                           [--error-value ERROR_VALUE]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -148,7 +160,10 @@ optional arguments:
   --save-no-session-cache
                         Save no session cache to avoid security risk
   --unlock-safety, -u   By default, this script only submits the first code per problem. However, you can remove the safety by this option in order to submit codes twice or more.
-
+  --judge-type JUDGE_TYPE, -j JUDGE_TYPE
+                        error type must be one of [normal, absolute, relative, absolute_or_relative]
+  --error-value ERROR_VALUE, -v ERROR_VALUE
+                        error value for decimal number judge: [Default] 1e-09
 ```
 
 ### codegen の詳細
@@ -184,17 +199,19 @@ optional arguments:
 
 以下は、次の挙動を期待する場合の`~/.atcodertools.toml`の例です。
 
-- コードスタイルの設定が幅4のスペースインデントである
-- コード生成テンプレートとして`~/my_template.cpp`を使う
-- ワークスペースのルートは `~/atcoder-workspace/`
-- 言語設定は `cpp` (提出時もしくはデフォルトのコードジェネレーター生成時に使われます)
-- 問題用ディレクトリ内で毎回`clang-format`を実行して、最後に`CMakeLists.txt`(空)をコンテスト用ディレクトリに生成する
-- カスタムコードジェネレーター `custom_code_generator.py`を指定する
-- AtCoderにログインせずにダウンロードを行う機能を使わない (公開コンテストに対してのみ可能)
-- データの並列ダウンロードを無効にする
-- ログイン情報のクッキーを保存する
-- テストケース(input)のフォーマットを`in_1.txt, in_2.txt, ...`とする
-- テストケース(output)のフォーマットを`out_1.txt, out_2.txt, ...`とする
+- `indent_type='space'` スペースがインデントに使われる(`'tab'`を指定した場合はタブが使われる)
+- `indent_width=4` インデント幅は4である (`indent_width`が無指定の場合`4`(nim言語以外), `2`(nim言語)が規定値として使われます。)
+- `template_file='~/my_template.cpp'` コード生成テンプレートとして`~/my_template.cpp`を使う
+- `workspace_dir='~/atcoder-workspace/'` ワークスペースのルートは `~/atcoder-workspace/`
+- `lang='cpp'` 言語設定は `cpp` (提出時もしくはデフォルトのコードジェネレーター生成時に使われます)
+- `code_generator_file="~/custom_code_generator.py"` カスタムコードジェネレーター `~/custom_code_generator.py`を指定する
+- `exec_on_each_problem_dir='clang-format -i ./*.cpp'` `exec_on_contest_dir='touch CMakeLists.txt'`
+    - 問題用ディレクトリ内で毎回`clang-format`を実行して、最後に`CMakeLists.txt`(空)をコンテスト用ディレクトリに生成する
+- `download_without_login=false` AtCoderにログインせずにダウンロードを行う機能を使わない (公開コンテストに対してのみ可能)
+- `parallel_download=false` データの並列ダウンロードを無効にする
+- `save_no_session_cache=false` ログイン情報のクッキーを保存する
+- `in_example_format="in_{}.txt"` テストケース(input)のフォーマットを`in_1.txt, in_2.txt, ...`とする
+- `out_example_format="out_{}.txt"` テストケース(output)のフォーマットを`out_1.txt, out_2.txt, ...`とする
 
 ```toml
 [codestyle]
@@ -202,7 +219,7 @@ indent_type='space' # 'tab' or 'space'
 indent_width=4
 template_file='~/my_template.cpp'
 workspace_dir='~/atcoder-workspace/'
-lang='cpp' # 'cpp' or 'java' (Currently)
+lang='cpp' # Check README.md for the supported languages.
 code_generator_file="~/custom_code_generator.py"
 [postprocess]
 exec_on_each_problem_dir='clang-format -i ./*.cpp'

@@ -26,6 +26,38 @@ class TestTester(unittest.TestCase):
         self.assertTrue(tester.main('', ['-d', test_dir, "-n", "1"]))
         self.assertFalse(tester.main('', ['-d', test_dir, "-n", "2"]))
 
+    def test_run_single_test_decimal_addition(self):
+        test_dir = os.path.join(
+            RESOURCE_DIR, "test_run_single_test_decimal_addition")
+        self.assertTrue(tester.main(
+            '', ['-d', test_dir, "-n", "1", "-v", "0.01", "-j", "absolute_or_relative"]))
+        self.assertTrue(tester.main(
+            '', ['-d', test_dir, "-n", "2", "-v", "0.01", "--judge-type", "absolute_or_relative"]))
+        self.assertTrue(tester.main(
+            '', ['-d', test_dir, "-n", "1", "-v", "0.01", "-j", "absolute"]))
+        self.assertTrue(tester.main(
+            '', ['-d', test_dir, "-n", "2", "-v", "0.01", "-j", "absolute"]))
+        self.assertTrue(tester.main(
+            '', ['-d', test_dir, "-n", "1", "-v", "0.01", "-j", "relative"]))
+        self.assertFalse(tester.main(
+            '', ['-d', test_dir, "-n", "2", "-v", "0.01", "-j", "relative"]))
+
+    def test_run_single_test_decimal_multiplication(self):
+        test_dir = os.path.join(
+            RESOURCE_DIR, "test_run_single_test_decimal_multiplication")
+        self.assertTrue(tester.main(
+            '', ['-d', test_dir, "-n", "1", "-v", "0.01", "-j", "absolute_or_relative"]))
+        self.assertTrue(tester.main(
+            '', ['-d', test_dir, "-n", "2", "--error-value", "0.01", "-j", "absolute_or_relative"]))
+        self.assertTrue(tester.main(
+            '', ['-d', test_dir, "-n", "1", "-v", "0.01", "-j", "absolute"]))
+        self.assertFalse(tester.main(
+            '', ['-d', test_dir, "-n", "2", "-v", "0.01", "-j", "absolute"]))
+        self.assertTrue(tester.main(
+            '', ['-d', test_dir, "-n", "1", "-v", "0.01", "-j", "relative"]))
+        self.assertTrue(tester.main(
+            '', ['-d', test_dir, "-n", "2", "-v", "0.01", "-j", "relative"]))
+
     @patch('os.access', return_value=True)
     @patch('pathlib.Path.is_file', return_value=True)
     def test_is_executable_file(self, os_mock, is_file_mock):
@@ -50,6 +82,13 @@ class TestTester(unittest.TestCase):
     @patch('pathlib.Path.is_file', return_value=False)
     def test_is_executable_file__directory(self, os_mock, is_file_mock):
         self.assertFalse(is_executable_file('directory'))
+
+    @patch("platform.system", return_value="Windows")
+    @patch("os.environ.get", return_value=".EXE;.out")
+    def test_is_executable_file__windows(self, platform_system_mock, os_environ_get_mock):
+        self.assertTrue(is_executable_file("A.eXe"))
+        self.assertTrue(is_executable_file("A.out"))
+        self.assertFalse(is_executable_file("A.exe.bak"))
 
     @patch('atcodertools.tools.tester.run_program', return_value=ExecResult(ExecStatus.NORMAL, 'correct', '', 0))
     def test_run_for_samples(self, run_program_mock: MagicMock):
@@ -92,7 +131,7 @@ class TestTester(unittest.TestCase):
             sample_pair_list = [('in_1.txt', 'out_1.txt'),
                                 ('in_2.txt', 'out_2.txt')]
             self.assertEqual(TestSummary(0, False), tester.run_for_samples(
-                'a.out', sample_pair_list, 1, True))
+                'a.out', sample_pair_list, 1, knock_out=True))
             self.assertEqual(1, run_program_mock.call_count)
             self.assertEqual(1, build_details_str_mock.call_count)
 

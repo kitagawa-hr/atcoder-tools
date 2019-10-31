@@ -1,5 +1,31 @@
 # Change Log
 
+## 1.1.6 / 2019-10-06
+
+- [#157](https://github.com/kyuridenamida/atcoder-tools/pull/157) Support decimal number judge
+    - Decimal number judge and the error value for the judge are automatically detected by analyzing the problem statement.
+    - Thanks for [@chaemon](https://github.com/chaemon/)'s contribution! This is a very useful functionality.
+- [#153](https://github.com/kyuridenamida/atcoder-tools/pull/153) Support C#
+    - Thanks for [@chaemon](https://github.com/chaemon/)'s contribution again!
+- [#159](https://github.com/kyuridenamida/atcoder-tools/pull/159) "Show Version" functionality on atcoder-tools command
+
+## 1.1.5 / 2019-08-20
+
+- [#140](https://github.com/kyuridenamida/atcoder-tools/pull/140) Make example input / output names configurable from EtcConfig
+    - Thanks for [@kitagawa-hr](https://github.com/kitagawa-hr/)'s contribution!
+- [#146](https://github.com/kyuridenamida/atcoder-tools/pull/146) Support NIM
+    - Thanks for [@chaemon](https://github.com/chaemon/)'s contribution!
+- [#145](https://github.com/kyuridenamida/atcoder-tools/pull/145) Support DLang
+    - Thanks for [@penpenpng](https://github.com/penpenpng/)'s contribution!
+- [#148](https://github.com/kyuridenamida/atcoder-tools/pull/148) Fix "codegen" error on Windows
+    - Thanks for [@penpenpng](https://github.com/penpenpng/)'s contribution!
+- [#144](https://github.com/kyuridenamida/atcoder-tools/pull/144) Fix Python code generator to generate codes following PEP8
+    - Thanks for [@penpenpng](https://github.com/penpenpng/)'s contribution!
+- [#142](https://github.com/kyuridenamida/atcoder-tools/pull/142) Stop using root logger
+    - Thanks for [@kmyk](https://github.com/kmyk/)'s contribution!
+- [#150](https://github.com/kyuridenamida/atcoder-tools/pull/150) Fix a bug flake8 in .travis.yml doesn't work
+    - Thanks for [@kmyk](https://github.com/kmyk/)'s contribution!
+
 ## 1.1.4 / 2019-04-11
 - [#138](https://github.com/kyuridenamida/atcoder-tools/pull/138) Fix a bug that generated main.py is not executable by making source files executable when their codes have shebang
     - Thanks for [@kmyk](https://github.com/kmyk/)'s contribution!

@@ -1,17 +1,22 @@
 #!/usr/bin/python3
 import argparse
 import glob
-import logging
 import os
+import platform
+import re
 import sys
 from pathlib import Path
 from typing import List, Tuple
 
 from colorama import Fore
 
+from atcodertools.common.judgetype import ErrorType, NormalJudge, DecimalJudge, Judge, JudgeType
+from atcodertools.common.logging import logger
 from atcodertools.executils.run_program import ExecResult, ExecStatus, run_program
 from atcodertools.tools.models.metadata import Metadata
 from atcodertools.tools.utils import with_color
+
+DEFAULT_EPS = 0.000000001
 
 
 class NoExecutableFileError(Exception):
@@ -32,8 +37,13 @@ class TestSummary:
 
 
 def is_executable_file(file_name):
-    return os.access(file_name, os.X_OK) and Path(file_name).is_file() \
-        and file_name.find(".cpp") == -1 and not file_name.endswith(".txt")  # cppやtxtを省くのは一応の Cygwin 対策
+    if platform.system() == "Windows":
+        return any(
+            re.match(r"^.*\{ext}$".format(ext=ext), file_name, re.IGNORECASE)
+            for ext in os.environ.get("pathext", default="").split(";"))
+    else:
+        return os.access(file_name, os.X_OK) and Path(file_name).is_file() \
+            and file_name.find(".cpp") == -1 and not file_name.endswith(".txt")  # cppやtxtを省くのは一応の Cygwin 対策
 
 
 def infer_exec_file(filenames):
@@ -45,7 +55,7 @@ def infer_exec_file(filenames):
 
     exec_file = exec_files[0]
     if len(exec_files) >= 2:
-        logging.warning("{0}  {1}".format(
+        logger.warning("{0}  {1}".format(
             "There're multiple executable files. '{exec_file}' is selected.".format(
                 exec_file=exec_file),
             "The candidates were {exec_files}.".format(exec_files=exec_files)))
@@ -90,7 +100,8 @@ def build_details_str(exec_res: ExecResult, input_file: str, output_file: str) -
     return res
 
 
-def run_for_samples(exec_file: str, sample_pair_list: List[Tuple[str, str]], timeout_sec: int, knock_out: bool = False,
+def run_for_samples(exec_file: str, sample_pair_list: List[Tuple[str, str]], timeout_sec: int,
+                    judge_method: Judge = NormalJudge(), knock_out: bool = False,
                     skip_io_on_success: bool = False) -> TestSummary:
     success_count = 0
     has_error_output = False
@@ -103,7 +114,7 @@ def run_for_samples(exec_file: str, sample_pair_list: List[Tuple[str, str]], tim
         with open(out_sample_file, 'r') as f:
             answer_text = f.read()
 
-        is_correct = exec_res.is_correct_output(answer_text)
+        is_correct = exec_res.is_correct_output(answer_text, judge_method)
         has_error_output = has_error_output or exec_res.has_stderr()
 
         if is_correct:
@@ -140,7 +151,7 @@ def run_for_samples(exec_file: str, sample_pair_list: List[Tuple[str, str]], tim
 
 def validate_sample_pair(in_sample_file, out_sample_file):
     if infer_case_num(in_sample_file) != infer_case_num(out_sample_file):
-        logging.error(
+        logger.error(
             'The file combination of {} and {} is wrong.'.format(
                 in_sample_file,
                 out_sample_file
@@ -148,7 +159,8 @@ def validate_sample_pair(in_sample_file, out_sample_file):
         raise IrregularSampleFileError
 
 
-def run_single_test(exec_file, in_sample_file_list, out_sample_file_list, timeout_sec: int, case_num: int) -> bool:
+def run_single_test(exec_file, in_sample_file_list, out_sample_file_list, timeout_sec: int, case_num: int,
+                    judge_method: Judge) -> bool:
     def single_or_none(lst: List):
         if len(lst) == 1:
             return lst[0]
@@ -169,15 +181,15 @@ def run_single_test(exec_file, in_sample_file_list, out_sample_file_list, timeou
     validate_sample_pair(in_sample_file, out_sample_file)
 
     test_summary = run_for_samples(
-        exec_file, [(in_sample_file, out_sample_file)], timeout_sec)
+        exec_file, [(in_sample_file, out_sample_file)], timeout_sec, judge_method)
 
     return test_summary.success_count == 1 and not test_summary.has_error_output
 
 
 def run_all_tests(exec_file, in_sample_file_list, out_sample_file_list, timeout_sec: int, knock_out: bool,
-                  skip_stderr_on_success: bool) -> bool:
+                  skip_stderr_on_success: bool, judge_method) -> bool:
     if len(in_sample_file_list) != len(out_sample_file_list):
-        logging.error("{0}{1}{2}".format(
+        logger.error("{0}{1}{2}".format(
             "The number of the sample inputs and outputs are different.\n",
             "# of sample inputs: {}\n".format(len(in_sample_file_list)),
             "# of sample outputs: {}\n".format(len(out_sample_file_list))))
@@ -188,7 +200,7 @@ def run_all_tests(exec_file, in_sample_file_list, out_sample_file_list, timeout_
         samples.append((in_sample_file, out_sample_file))
 
     test_summary = run_for_samples(
-        exec_file, samples, timeout_sec, knock_out, skip_stderr_on_success)
+        exec_file, samples, timeout_sec, judge_method, knock_out, skip_stderr_on_success)
 
     if len(samples) == 0:
         print("No test cases")
@@ -213,17 +225,21 @@ DEFAULT_IN_EXAMPLE_PATTERN = 'in_*.txt'
 DEFAULT_OUT_EXAMPLE_PATTERN = "out_*.txt"
 
 
-def get_sample_patterns(metadata_file: str) -> Tuple[str, str]:
+def get_sample_patterns_and_judge_method(metadata_file: str) -> Tuple[str, str, Judge]:
     try:
         metadata = Metadata.load_from(metadata_file)
-        return metadata.sample_in_pattern, metadata.sample_out_pattern
+        return metadata.sample_in_pattern, metadata.sample_out_pattern, metadata.judge_method
     except IOError:
-        logging.warning("{} is not found. Assume the example file name patterns are {} and {}".format(
+        logger.warning("{} is not found. Assume the example file name patterns are {} and {}".format(
             metadata_file,
             DEFAULT_IN_EXAMPLE_PATTERN,
             DEFAULT_OUT_EXAMPLE_PATTERN)
         )
-        return DEFAULT_IN_EXAMPLE_PATTERN, DEFAULT_OUT_EXAMPLE_PATTERN
+        return DEFAULT_IN_EXAMPLE_PATTERN, DEFAULT_OUT_EXAMPLE_PATTERN, NormalJudge()
+
+
+USER_FACING_JUDGE_TYPE_LIST = [
+    "normal", "absolute", "relative", "absolute_or_relative"]
 
 
 def main(prog, args) -> bool:
@@ -260,23 +276,66 @@ def main(prog, args) -> bool:
                         action='store_true',
                         default=False)
 
+    parser.add_argument('--judge-type', '-j',
+                        help='error type'
+                             ' must be one of [{}]'.format(
+                                 ', '.join(USER_FACING_JUDGE_TYPE_LIST)),
+                        type=str,
+                        default=None)
+
+    parser.add_argument('--error-value', '-v',
+                        help='error value for decimal number judge:'
+                             ' [Default] ' + str(DEFAULT_EPS),
+                        type=float,
+                        default=None)
+
     args = parser.parse_args(args)
     exec_file = args.exec or infer_exec_file(
         glob.glob(os.path.join(args.dir, '*')))
 
     metadata_file = os.path.join(args.dir, "metadata.json")
-    in_ex_pattern, out_ex_pattern = get_sample_patterns(metadata_file)
+    in_ex_pattern, out_ex_pattern, judge_method = get_sample_patterns_and_judge_method(
+        metadata_file)
 
     in_sample_file_list = sorted(
         glob.glob(os.path.join(args.dir, in_ex_pattern)))
     out_sample_file_list = sorted(
         glob.glob(os.path.join(args.dir, out_ex_pattern)))
 
+    user_input_decimal_error_type = None
+    if args.judge_type is not None:
+        if args.judge_type == "normal":
+            judge_method = NormalJudge()
+        elif args.judge_type in ["absolute", "relative", "absolute_or_relative"]:
+            user_input_decimal_error_type = ErrorType(args.judge_type)
+        else:
+            logger.error("Unknown judge type: {}. judge type must be one of [{}]".format(
+                args.judge_type, ", ".join(USER_FACING_JUDGE_TYPE_LIST)))
+            sys.exit(-1)
+
+    user_input_error_value = args.error_value
+
+    if isinstance(judge_method, DecimalJudge):
+        judge_method = DecimalJudge(error_type=user_input_decimal_error_type or judge_method.error_type,
+                                    diff=user_input_error_value or judge_method.diff)
+    elif user_input_decimal_error_type is not None:
+        judge_method = DecimalJudge(error_type=user_input_decimal_error_type,
+                                    diff=user_input_error_value or DEFAULT_EPS)
+    elif user_input_error_value is not None:
+        assert judge_method.judge_type == JudgeType.Normal
+        logger.warn("error_value {} is ignored because this is normal judge".format(
+            user_input_error_value))
+
+    if isinstance(judge_method, DecimalJudge):
+        logger.info("Decimal number judge is enabled. type={}, diff={}".format(
+            judge_method.error_type.value, judge_method.diff))
+
     if args.num is None:
         return run_all_tests(exec_file, in_sample_file_list, out_sample_file_list, args.timeout, args.knock_out,
-                             args.skip_almost_ac_feedback)
+                             args.skip_almost_ac_feedback, judge_method)
     else:
-        return run_single_test(exec_file, in_sample_file_list, out_sample_file_list, args.timeout, args.num)
+        return run_single_test(exec_file, in_sample_file_list, out_sample_file_list, args.timeout, args.num,
+                               judge_method)
 
 
 if __name__ == "__main__":
